@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="gsap.min.js"></script>
+    <script src="three.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: absolute; inset: 0; }
+      #gl { position: absolute; inset: 0; }
+      .tex { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      #word {
+        position: absolute; left: 0; right: 0; bottom: 130px; text-align: center;
+        color: #fff; font-family: "Helvetica Neue", Arial, sans-serif;
+        font-weight: 200; font-size: 44px; letter-spacing: 0.6em; opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <!-- textures preloaded as DOM images so the renderer's media-ready gate covers them -->
+      <img class="tex" id="tex0" src="assets/cosmic-cliffs.jpg" />
+      <img class="tex" id="tex1" src="assets/pillars-of-creation.jpg" />
+      <img class="tex" id="tex2" src="assets/deep-field.jpg" />
+      <canvas id="gl" class="clip" data-start="0" data-duration="20" data-track-index="0"></canvas>
+      <div id="word">CURVESCREEN</div>
+    </div>
+
+    <script>
+      // A HyperFrames-native rebuild of the CurveScreen surface: the SAME parabolic panel the app
+      // uses (z = depth * nx^2, perspective camera at z=4.2, fov 46) — fully deterministic, no
+      // screen recording. A white line draws in, bends and grows into the curved screen, then the
+      // screen broadcasts three James Webb images with the app's parallax tilt.
+      // Everything (scene + full GSAP timeline) is built SYNCHRONOUSLY so the runtime sees the real
+      // duration immediately; textures come from the preloaded <img> tags above.
+      const W = 1920, H = 1080;
+      const renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById("gl"),
+        antialias: true,
+        preserveDrawingBuffer: true,
+      });
+      renderer.setSize(W, H, false);
+      renderer.setPixelRatio(1);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+      const camera = new THREE.PerspectiveCamera(46, W / H, 0.1, 100);
+      camera.position.set(0, 0, 4.2);
+
+      // shared parabolic geometry — bend animated by rewriting z = bend * DEPTH * nx^2
+      const PANEL_W = 3.2, PANEL_H = 1.8, DEPTH = 0.42, COLS = 64, ROWS = 20;
+      const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H, COLS, ROWS);
+      const basePos = geo.attributes.position.array.slice();
+      const state = { bend: 0 };
+      function applyBend() {
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = basePos[i * 3];
+          const nx = x / (PANEL_W / 2);
+          pos.setZ(i, state.bend * DEPTH * nx * nx);   // + => concave (edges toward the camera)
+        }
+        pos.needsUpdate = true;
+      }
+
+      const group = new THREE.Group();
+      scene.add(group);
+      const mk = (mat, order) => { const m = new THREE.Mesh(geo, mat); m.renderOrder = order; group.add(m); return m; };
+
+      // Textures via fixed-size canvases: the GPU storage is allocated from the canvas dims, which
+      // are set synchronously and never change — this sidesteps r149's <img>-upload race that throws
+      // "GL_INVALID_VALUE: Offset overflows texture dimensions" (and leaves the panel black).
+      const TEX_W = 1280, TEX_H = 720;
+      const imgs = [0, 1, 2].map((i) => {
+        const el = document.getElementById("tex" + i);
+        const cv = document.createElement("canvas");
+        cv.width = TEX_W; cv.height = TEX_H;
+        const tex = new THREE.CanvasTexture(cv);
+        tex.minFilter = THREE.LinearFilter;
+        // coplanar overlay meshes: kill the depth buffer entirely and layer purely by renderOrder,
+        // otherwise the first (invisible) mesh's depth write blacks out everything drawn after it
+        const m = mk(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false }), i);
+        m.userData.tex = tex; m.userData.el = el; m.userData.cv = cv;
+        return m;
+      });
+      const white = mk(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide, depthWrite: false, depthTest: false }), 10);
+
+      function render() {
+        for (const m of imgs) {
+          const { el, cv, tex } = m.userData;
+          if (el.complete && el.naturalWidth > 0 && !tex.__up) {
+            cv.getContext("2d").drawImage(el, 0, 0, TEX_W, TEX_H);
+            tex.needsUpdate = true;
+            tex.__up = true;
+          }
+        }
+        renderer.render(scene, camera);
+      }
+
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.inOut" } });
+      tl.eventCallback("onUpdate", render);
+
+      // 1) a thin white line draws across the black
+      group.scale.set(0, 0.006, 1);
+      tl.to(group.scale, { x: 1, duration: 1.8, ease: "power3.out" }, 0.5);
+      // 2) the line grows and bends into the curved screen
+      tl.to(group.scale, { y: 1, duration: 2.4 }, 2.6);
+      tl.to(state, { bend: 1, duration: 2.4, onUpdate: applyBend }, 2.6);
+      // 3) the screen lights up — first broadcast
+      tl.to(white.material, { opacity: 0, duration: 1.4 }, 5.2);
+      tl.to(imgs[0].material, { opacity: 1, duration: 1.4 }, 5.2);
+      // 4) the app's parallax tilt, as the screen watches you pass
+      tl.to(group.rotation, { y: 0.15, x: -0.045, duration: 1.9, ease: "sine.inOut" }, 6.8);
+      tl.to(group.rotation, { y: -0.13, x: 0.035, duration: 2.4, ease: "sine.inOut" }, 8.7);
+      // 5) next broadcast — Pillars of Creation
+      tl.to(imgs[0].material, { opacity: 0, duration: 1.1 }, 10.2);
+      tl.to(imgs[1].material, { opacity: 1, duration: 1.1 }, 10.2);
+      tl.to(group.rotation, { y: 0.11, x: -0.03, duration: 2.6, ease: "sine.inOut" }, 11.3);
+      // 6) last broadcast — the deep field, drifting closer
+      tl.to(imgs[1].material, { opacity: 0, duration: 1.1 }, 13.6);
+      tl.to(imgs[2].material, { opacity: 1, duration: 1.1 }, 13.6);
+      tl.to(group.rotation, { y: 0, x: 0, duration: 2.2, ease: "sine.inOut" }, 13.6);
+      tl.to(camera.position, { z: 3.85, duration: 3.6, ease: "sine.inOut", onUpdate: render }, 13.6);
+      // 7) one word
+      tl.to("#word", { opacity: 0.9, duration: 1.4 }, 16.6);
+      // 8) settle back into black
+      tl.to(["#gl", "#word"], { opacity: 0, duration: 1.5, ease: "power2.in" }, 18.3);
+
+      applyBend();
+      render();
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

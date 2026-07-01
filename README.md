@@ -5,6 +5,11 @@ page and it renders that content onto a real concave 3D surface in a borderless,
 draggable window — like a little sci-fi viewscreen sitting on your desktop. The surface leans toward
 your cursor and drifts gently on its own.
 
+![A line bends into a curved screen broadcasting James Webb imagery](media/preview.gif)
+
+▶ full demo: [`media/demo.mp4`](media/demo.mp4) — and the demo itself is code: it's rendered from an
+HTML composition in [`promo/`](promo/) with HyperFrames.
+
 ![CurveScreen showing a James Webb image on the curved surface](media/showcase.png)
 
 Extracted and generalized from a native curved companion display: the app-specific parts are gone,

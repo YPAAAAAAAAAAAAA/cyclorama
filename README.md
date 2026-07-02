@@ -1,4 +1,4 @@
-# Cyclorama
+# Cyclorama Curved Screen
 
 A tiny, standalone **curved screen for your desktop**. Point it at an image, a video, or a live web
 page and it renders that content onto a real concave 3D surface in a borderless, transparent,

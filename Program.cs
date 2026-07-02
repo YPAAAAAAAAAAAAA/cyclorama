@@ -191,7 +191,7 @@ public sealed class CurveWindow : Window
     public CurveWindow(ContentSpec spec)
     {
         this.spec = spec;
-        Title = "Cyclorama";
+        Title = "Cyclorama Curved Screen";
         Width = spec.Width;
         Height = spec.Height;
         if (spec.Left is double l) Left = l;

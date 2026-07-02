@@ -8,7 +8,6 @@ broadcasting 📡 It leans toward your cursor when you pass by 👀 and drifts g
 
 ![demo](media/preview.gif)
 
-▶️ **[Watch the full demo](media/demo.mp4)** 🍿 (40s)
 
 | 🖼️ your pictures | 🎬 your films | 🌐 anything live on the web |
 |---|---|---|

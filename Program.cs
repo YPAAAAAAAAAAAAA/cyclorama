@@ -359,7 +359,12 @@ public sealed class CurveWindow : Window
             };
             videoPlayer.MediaEnded += (_, _) => { videoPlayer!.Position = TimeSpan.Zero; videoPlayer.Play(); };
             videoPlayer.MediaFailed += (_, ev) =>
-                Dispatcher.Invoke(() => RebuildViewport(BuildPlaceholderMaterial("video failed:\n" + ev.ErrorException?.Message)));
+                Dispatcher.Invoke(() =>
+                {
+                    videoPlayer?.Close();
+                    videoPlayer = null;                       // stop polling a dead player
+                    RebuildViewport(BuildPlaceholderMaterial("video failed:\n" + ev.ErrorException?.Message));
+                });
             videoPlayer.Open(new Uri(Path.GetFullPath(path)));
             videoPlayer.Play();
             var drawing = new VideoDrawing { Player = videoPlayer, Rect = new Rect(0, 0, 1, 1) };
@@ -376,7 +381,8 @@ public sealed class CurveWindow : Window
             new LinearGradientBrush(WColor.FromRgb(10, 22, 40), WColor.FromRgb(30, 120, 170), 90),
             null, new RectangleGeometry(new Rect(0, 0, 1280, 720))));
         var text = new FormattedText(label, System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI"), 48, Brushes.White, 1.0);
+            FlowDirection.LeftToRight, new Typeface("Segoe UI"), 48, Brushes.White, 1.0)
+        { MaxTextWidth = 1120 };                              // long error messages wrap instead of overflowing
         group.Children.Add(new GeometryDrawing(Brushes.White, null,
             text.BuildGeometry(new WPoint(80, 320))));
         return new DiffuseMaterial(new DrawingBrush(group) { Stretch = Stretch.Fill });
@@ -499,9 +505,15 @@ public sealed class CurveWindow : Window
         hideControlsTimer?.Start();
     }
 
+    private DateTime lastPlaybackUiUpdate;
+
     private void UpdatePlaybackUi()
     {
         if (videoPlayer == null || seekBar == null || !videoPlayer.NaturalDuration.HasTimeSpan) return;
+        // this runs on the render loop (~60/s); the seek bar and clock only need ~4 updates/s
+        var now = DateTime.UtcNow;
+        if ((now - lastPlaybackUiUpdate).TotalMilliseconds < 250) return;
+        lastPlaybackUiUpdate = now;
         var dur = videoPlayer.NaturalDuration.TimeSpan;
         if (dur.TotalSeconds > 0 && Math.Abs(seekBar.Maximum - dur.TotalSeconds) > 0.05) seekBar.Maximum = dur.TotalSeconds;
         if (!scrubbing)

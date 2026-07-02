@@ -8,6 +8,7 @@ It leans toward your cursor when you pass by, and drifts gently while it waits.
 
 ![demo](media/preview.gif)
 
+▶ **[Watch the full demo](media/demo.mp4)** (40s)
 
 | 🖼️ your pictures | 🎬 your films | 🌐 anything live on the web |
 |---|---|---|
@@ -22,22 +23,10 @@ Cyclorama film.mp4              # 🎬 a film — loops, floating player bar
 Cyclorama https://example.com   # 🌐 a live page: a dashboard, a stream, a clock
 ```
 
-Drag it anywhere · pull the corner to resize · 
+Drag it anywhere · pull the corner to resize · `Esc` closes
 
 Ships with **James Webb Space Telescope** imagery in [`samples/`](samples/) — nebulae, galaxies, the
-deep field — so out of the box it looks like it's receiving something from very, very far away 
-
-
-
-
-
-
-
-
-
-
-
-
+deep field — so out of the box it looks like it's receiving something from very, very far away
 
 ## 🛠️ Details
 
@@ -49,7 +38,7 @@ deep field — so out of the box it looks like it's receiving something from ver
   (`z = curveDepth · nx²`; flip the sign for a convex bulge) and viewed through a perspective camera.
   Images use an `ImageBrush`, video plays through a GPU `VideoDrawing`, web pages render in an
   offscreen WebView2. The whole app is two files — see [`Program.cs`](Program.cs).
-- **Build** — `dotnet build -c Release` · needs .NET 8 on Windows (WebView2 runtime for web pages,
+- **Build** 🚀 — `dotnet build -c Release` · needs .NET 8 on Windows (WebView2 runtime for web pages,
   preinstalled on current Windows 10/11)
 - **The demo is code** — [`promo/`](promo/) is an HTML composition rendered to mp4 (60 fps) with
   [HyperFrames](https://github.com/heygen-com/hyperframes); `npx hyperframes render` rebuilds it

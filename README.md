@@ -1,84 +1,128 @@
 # Cyclorama Curved Screen
 
-A tiny, standalone **curved screen for your desktop**. Point it at an image, a video, or a live web
-page and it renders that content onto a real concave 3D surface in a borderless, transparent,
-draggable window — like a little sci-fi viewscreen sitting on your desktop. The surface leans toward
-your cursor and drifts gently on its own.
+> A curved screen for your desktop. Point it at an image, a video, or a live web page — it appears on
+> a real concave 3D surface in a borderless, transparent, draggable window, like a sci-fi viewscreen
+> sitting on your desk.
+
+![license](https://img.shields.io/badge/license-MIT-white) ![platform](https://img.shields.io/badge/platform-Windows-blue) ![runtime](https://img.shields.io/badge/.NET-8.0-512BD4) ![ui](https://img.shields.io/badge/WPF-3D-8A2BE2)
 
 ![A line bends into a curved screen broadcasting James Webb imagery](media/preview.gif)
 
-▶ full demo: [`media/demo.mp4`](media/demo.mp4) — and the demo itself is code: it's rendered from an
-HTML composition in [`promo/`](promo/) with HyperFrames.
+▶ **Full demo: [`media/demo.mp4`](media/demo.mp4)** — and the demo itself is code: it's rendered
+frame-deterministically from the HTML composition in [`promo/`](promo/) with
+[HyperFrames](https://github.com/heygen-com/hyperframes). No video editor was involved.
 
-![Cyclorama showing a James Webb image on the curved surface](media/showcase.png)
+A *cyclorama* is the giant curved backdrop at the rear of a theater stage that scenery is projected
+onto. This is that, for your desktop.
 
-Extracted and generalized from a native curved companion display: the app-specific parts are gone,
-what's left is the pure curved-surface media carrier.
+## What it looks like
+
+| image on the curve | video player on the curve | live web page on the curve |
+|---|---|---|
+| ![Image mode](media/showcase.png) | ![Video mode with player controls](media/video-player.png) | ![Web mode](media/web-mode.png) |
+
+The window is borderless and (almost) fully transparent — only the curved surface shows. It **leans
+toward your cursor** (parallax tilt), drifts gently when idle, and can be dragged anywhere.
 
 ## Quick start
 
-- **Double-click `Cyclorama.exe`** → it opens with a bundled James Webb space image on the curve.
-- Or point it at your own content:
+Download / build (see below), then:
+
+- **Double-click `Cyclorama.exe`** → opens with a bundled James Webb image on the curve.
+- Or give it anything:
 
 ```
 Cyclorama "C:\photo.jpg"
 Cyclorama "C:\clip.mp4"
 Cyclorama https://example.com
-Cyclorama samples\cosmic-cliffs-live.mp4     # a bundled looping cosmic clip
+Cyclorama samples\cosmic-cliffs-live.mp4     # bundled looping cosmic clip
+Cyclorama samples\web-demo.html              # bundled live web page
 ```
 
-`source` is auto-detected:
+The source kind is auto-detected:
 
-| source | shows as |
+| source | shown as |
 |--------|----------|
-| `.png .jpg .gif .webp .bmp .tiff` | image |
-| `.mp4 .webm .mov .mkv .avi .m4v`  | video — looped, GPU-smooth, with a play/seek/volume bar |
-| `https://…` or a local `.html`    | live web page |
+| `.png .jpg .jpeg .gif .webp .bmp .tiff` | image |
+| `.mp4 .webm .mov .mkv .avi .m4v .wmv`   | video — looped, GPU-smooth, with an auto-hiding play / seek / volume bar |
+| `https://…`, `http://…`, or a local `.html` | live web page |
 
 Force a kind with `--image` / `--video` / `--url`.
 
-Drag the surface to move it · drag the bottom-right grip to resize (aspect-locked) · `Esc` closes.
+### Controls
+
+- **Drag** the surface to move the window
+- **Drag the bottom-right grip** to resize — the window stays locked to the content's aspect ratio, so the curve never stretches
+- **Esc** closes
+- Video: move the mouse to reveal the player bar (play/pause · seek · time · mute · volume)
 
 ### Options
 
-| flag | meaning |
-|------|---------|
-| `--size WxH` | initial window width (height auto-locks to the content's aspect) |
-| `--pos X,Y`  | window position (default: centered) |
-| `--curve N`  | concavity, `0`–`0.8` (default `0.38`; `0` = flat) |
-| `--flat`     | no curve |
-| `--still`    | disable the idle drift (mouse-follow tilt stays) |
-| `--top`      | always-on-top |
-| `--mute`     | mute video audio |
-
-## Bundled samples (`samples/`)
-
-Real **James Webb Space Telescope** imagery to show off the curve — see `samples/CREDITS.md`.
-
-- `cosmic-cliffs.jpg` — the Carina Nebula ("Cosmic Cliffs") — also the default image
-- `pillars-of-creation.jpg`, `deep-field.jpg`
-- `cosmic-cliffs-live.mp4` — a gently-looping animated version of the Cosmic Cliffs
-- `web-demo.html` — a tiny live web page: `Cyclorama samples\web-demo.html`
+| flag | meaning | default |
+|------|---------|---------|
+| `--size WxH` | initial window size (height follows the content aspect) | `480x270` |
+| `--pos X,Y`  | window position | centered |
+| `--curve N`  | concavity, `0`–`0.8` | `0.38` |
+| `--flat`     | no curve (flat panel) | — |
+| `--still`    | disable the idle drift (cursor tilt stays on) | — |
+| `--top`      | always-on-top | off |
+| `--mute`     | mute video audio | off |
 
 ## How it works
 
-The content isn't warped as a 2D effect — it's painted onto a real **3D mesh** bent into a parabola
-and viewed through a perspective camera. The concave-vs-convex shape is one sign in the mesh's `z`:
+The content is **not** warped as a 2D effect. It's painted onto a real 3D mesh — a 64×20 grid bent
+into a parabola — and viewed through a perspective camera (fov 46, `z = 4.2`). The whole
+concave-vs-convex choice is one sign in the mesh's `z`:
 
 ```
-concave (wraps in)   :  z = +curveDepth * nx²    // edges nearer the camera   ← Cyclorama
-convex  (bulges out) :  z = -curveDepth * nx²    // centre nearer the camera
+concave (wraps in)   :  z = +curveDepth · nx²    // edges nearer the camera   ← Cyclorama
+convex  (bulges out) :  z = -curveDepth · nx²    // centre nearer the camera
 ```
 
-where `nx` runs −1…+1 across the panel. Each source reaches the curve differently:
+where `nx` runs −1 … +1 across the panel. Each source reaches the curve through the lightest
+possible pipeline:
 
-- **image** → an `ImageBrush` on the mesh material.
-- **video** → `MediaPlayer` → a `VideoDrawing` brush (GPU, smooth, looped).
-- **web** → an offscreen WebView2 (the shared Edge runtime — not bundled) renders the page and its
-  frames are copied onto the material. Smooth for normal pages; capped for video-heavy ones.
+| source | pipeline | characteristics |
+|--------|----------|----------------|
+| image | `ImageBrush` on the mesh material | static, crisp |
+| video | `MediaPlayer` → `VideoDrawing` brush | GPU-composited, smooth, looped |
+| web   | offscreen **WebView2** (shared Edge runtime, not bundled) → frames copied onto the material | live pages; capture-rate capped (~30 fps) |
 
-The window auto-locks its aspect to the content so the curve is never stretched, polls the cursor to
-lean toward it, and lights the surface with flat ambient white so media shows at full brightness.
+Other details that keep it feeling right:
+
+- **Aspect lock at the OS level** — a `WM_SIZING` hook constrains interactive resizing to the
+  content's aspect ratio, so the curved surface is never stretched.
+- **Cursor parallax** — the global cursor is polled each frame; the panel eases toward it
+  (max ±10°) and returns to a resting lean when you leave.
+- **Flat ambient lighting** — the surface is lit uniformly white, so media shows at full brightness
+  like a screen, with no 3D shading darkening the curve.
+- **Failure-safe** — a broken image/video/URL degrades to a labeled placeholder panel instead of a
+  black window or a crash.
+
+## Bundled samples (`samples/`)
+
+Real **James Webb Space Telescope** imagery to show off the curve (credits: NASA, ESA, CSA, STScI —
+see [`samples/CREDITS.md`](samples/CREDITS.md), CC BY 4.0):
+
+- `cosmic-cliffs.jpg` — the Carina Nebula "Cosmic Cliffs" (the default image)
+- `pillars-of-creation.jpg` — Pillars of Creation (NIRCam)
+- `deep-field.jpg` — Webb's First Deep Field (SMACS 0723)
+- `cosmic-cliffs-live.mp4` — a gently-looping animated take on the Cosmic Cliffs
+- `web-demo.html` — a tiny animated live page with a running clock
+
+## The promo video is code
+
+[`promo/index.html`](promo/index.html) is a [HyperFrames](https://github.com/heygen-com/hyperframes)
+composition that rebuilds this exact curved panel in three.js (same parabola, same camera) and plays
+the story — a line draws in, bends into the screen, and the screen broadcasts three Webb images with
+the app's parallax tilt. Rebuild the mp4 with one command:
+
+```
+cd promo
+npx hyperframes render --output ../media/demo.mp4
+```
+
+See [`promo/README.md`](promo/README.md).
 
 ## Build
 
@@ -88,11 +132,18 @@ dotnet build -c Release
 dotnet publish -c Release -o dist --self-contained false -p:PublishSingleFile=true
 ```
 
-Requirements: **.NET 8 SDK** (Windows) to build, the **.NET 8 Desktop runtime** to run, and the Edge
-**WebView2 runtime** (preinstalled on current Windows 10/11) for the web source.
+**Requirements**
+
+| to | you need |
+|----|----------|
+| build | .NET 8 SDK (Windows) |
+| run   | .NET 8 Desktop Runtime |
+| web source | Edge WebView2 Runtime (preinstalled on current Windows 10/11) |
 
 ## Credits & license
 
-- Code: **MIT** (see `LICENSE`).
-- Bundled space imagery: **NASA, ESA, CSA, STScI** (James Webb Space Telescope), CC BY 4.0 — see
-  `samples/CREDITS.md`.
+- Code: **MIT** — see [`LICENSE`](LICENSE).
+- Bundled space imagery: **NASA, ESA, CSA, STScI** (James Webb Space Telescope), **CC BY 4.0** —
+  see [`samples/CREDITS.md`](samples/CREDITS.md).
+- Promo composition renders with [HyperFrames](https://github.com/heygen-com/hyperframes); vendored
+  [GSAP](https://gsap.com) (standard license) and [three.js](https://threejs.org) (MIT).

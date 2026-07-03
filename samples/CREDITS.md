@@ -15,3 +15,11 @@ These images are released by ESA/Webb under **CC BY 4.0** — free to use and re
 attribution** (the credit line above). See <https://esawebb.org/copyright/>.
 
 `web-demo.html` is original to this project and covered by the project's MIT license.
+
+## Demo footage (`media/demos/`)
+
+| file | content | credit |
+|------|---------|--------|
+| `film.gif` | the *Sintel* trailer playing on the curve | © Blender Foundation, [durian.blender.org](https://durian.blender.org) — CC BY 3.0 |
+| `art.gif` | *The Starry Night* (1889) | Vincent van Gogh — public domain, via Wikimedia Commons |
+| `web.gif` | live wind map | [earth.nullschool.net](https://earth.nullschool.net), captured as an on-screen demo |

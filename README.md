@@ -8,10 +8,23 @@ broadcasting 📡 It leans toward your cursor when you pass by 👀 and drifts g
 
 ![demo](media/preview.gif)
 
+## 🎬 It plays films
 
-| 🖼️ your pictures | 🎬 your films | 🌐 anything live on the web |
-|---|---|---|
-| ![](media/showcase.png) | ![](media/video-player.png) | ![](media/web-mode.png) |
+![film on the curve](media/demos/film.gif)
+
+<sub>*Sintel* © Blender Foundation · CC BY 3.0 · your own films work the same: `Cyclorama film.mp4`</sub>
+
+## 🖼️ It hangs masterpieces
+
+![The Starry Night, leaning with the cursor](media/demos/art.gif)
+
+<sub>van Gogh's *The Starry Night*, leaning toward the cursor as it passes 👀</sub>
+
+## 🌐 It broadcasts the live planet
+
+![live wind map of Earth](media/demos/web.gif)
+
+<sub>[earth.nullschool.net](https://earth.nullschool.net) — a real web page, alive on the curve. Any URL works 📡</sub>
 
 ## ✨ Put anything on it
 
@@ -21,8 +34,6 @@ Cyclorama photo.jpg             # 🖼️ your picture
 Cyclorama film.mp4              # 🎬 a film — loops, floating player bar
 Cyclorama https://example.com   # 🌐 a live page: a dashboard, a stream, a clock
 ```
-
-🖱️ Drag it anywhere · ↘️ pull the corner to resize · ⎋ `Esc` closes
 
 Ships with **James Webb Space Telescope** imagery 🔭 in [`samples/`](samples/) — nebulae 🌫️,
 galaxies 🌀, the deep field 🌌 — so out of the box it looks like it's receiving something from
@@ -43,5 +54,6 @@ very, very far away 👽
   pages, preinstalled on current Windows 10/11)
 - 🎥 **The demo is code** — [`promo/`](promo/) is an HTML composition rendered to mp4 (60 fps) with
   [HyperFrames](https://github.com/heygen-com/hyperframes); `npx hyperframes render` rebuilds it 🔁
-- 🏅 **Credits** — Webb imagery: NASA, ESA, CSA, STScI, CC BY 4.0 ([details](samples/CREDITS.md)) ·
+- 🏅 **Credits** — Webb imagery: NASA, ESA, CSA, STScI, CC BY 4.0 · demo footage: *Sintel* ©
+  Blender Foundation CC BY 3.0, *The Starry Night* public domain ([details](samples/CREDITS.md)) ·
   code: [MIT](LICENSE) 📜

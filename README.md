@@ -55,8 +55,10 @@ very, very far away 👽
   (`z = curveDepth · nx²`; flip the sign for a convex bulge 🔄) and viewed through a perspective
   camera. Images use an `ImageBrush`, video plays through a GPU `VideoDrawing`, web pages render in
   an offscreen WebView2. The whole app is two files — see [`Program.cs`](Program.cs) 📄
-- 🚀 **Build** — `dotnet build -c Release` · needs .NET 8 on Windows (WebView2 runtime for web
-  pages, preinstalled on current Windows 10/11)
+- 🚀 **Install** — `.\install.ps1` builds it and installs it as a real app for the current user:
+  `%LOCALAPPDATA%\Programs\Cyclorama`, Start-Menu + desktop shortcuts, Open-with entry 📎
+  (`.\install.ps1 -Uninstall` removes it all) · or just `dotnet build -c Release` · needs .NET 8
+  on Windows (WebView2 runtime for web pages, preinstalled on current Windows 10/11)
 - 🎥 **The demo is code** — [`promo/`](promo/) is an HTML composition rendered to mp4 (60 fps) with
   [HyperFrames](https://github.com/heygen-com/hyperframes); `npx hyperframes render` rebuilds it 🔁
 - 🏅 **Credits** — Webb imagery: NASA, ESA, CSA, STScI, CC BY 4.0 · demo footage: *Sintel* ©

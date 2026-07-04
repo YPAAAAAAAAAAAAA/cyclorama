@@ -7,6 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Cyclorama</AssemblyName>
     <RootNamespace>Cyclorama</RootNamespace>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Cyclorama Curved Screen</Product>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />

@@ -33,7 +33,11 @@ Cyclorama                       # 🌌 a James Webb image, out of the box
 Cyclorama photo.jpg             # 🖼️ your picture
 Cyclorama film.mp4              # 🎬 a film — loops, floating player bar
 Cyclorama https://example.com   # 🌐 a live page: a dashboard, a stream, a clock
+Cyclorama --register            # 📎 right-click any film → "Open with → Cyclorama"
 ```
+
+Or skip the terminal: drop a file straight onto the curve 🫳 and it swaps in place —
+`Ctrl+V` a path or a URL works too ✨
 
 Ships with **James Webb Space Telescope** imagery 🔭 in [`samples/`](samples/) — nebulae 🌫️,
 galaxies 🌀, the deep field 🌌 — so out of the box it looks like it's receiving something from
@@ -45,7 +49,8 @@ very, very far away 👽
 
 - 🎛️ **Flags** — `--curve 0.5` (bend, 0–0.8) · `--flat` · `--top` (always-on-top) · `--still`
   (no idle drift) · `--mute` · `--size WxH` · `--pos X,Y` · force a type with `--image` /
-  `--video` / `--url`
+  `--video` / `--url` · `--register` / `--unregister` (Open-with entry, HKCU only, no admin)
+- ⌨️ **Player keys** — `Space` pause · `←`/`→` seek 10s · `Ctrl+V` open clipboard file/URL
 - 🧠 **How it works** — the content is painted onto a real 3D mesh bent into a parabola
   (`z = curveDepth · nx²`; flip the sign for a convex bulge 🔄) and viewed through a perspective
   camera. Images use an `ImageBrush`, video plays through a GPU `VideoDrawing`, web pages render in

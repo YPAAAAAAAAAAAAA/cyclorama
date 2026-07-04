@@ -25,8 +25,11 @@ namespace Cyclorama;
 //   Cyclorama --image photo.png
 //   Cyclorama --video clip.mp4
 //   Cyclorama --url https://example.com
+//   Cyclorama --register | --unregister     add/remove "Open with -> Cyclorama" for media files (HKCU)
 // Options: --size WxH  --pos X,Y  --curve <0..0.8>  --flat  --still  --top  --mute
 // Drag the surface to move it; drag the bottom-right grip to resize (aspect-locked); Esc closes.
+// Drop a file (or Ctrl+V a path / URL) onto the curve to play it in place. Space pauses video,
+// Left/Right seek 10s.
 
 public enum ContentKind { Image, Video, Web }
 
@@ -47,12 +50,18 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Length > 0 && (args[0] == "--register" || args[0] == "--unregister"))
+        {
+            ShellRegistration.Apply(register: args[0] == "--register");
+            return;
+        }
         var spec = ParseArgs(args);
         if (spec is null)
         {
             MessageBox.Show(
                 "Cyclorama <source> [--size WxH] [--pos X,Y] [--curve 0.38] [--flat] [--still] [--top] [--mute]\n" +
-                "  source: an image, a video, or http(s):// URL",
+                "  source: an image, a video, or http(s):// URL\n" +
+                "Cyclorama --register   adds \"Open with -> Cyclorama\" for media files",
                 "Cyclorama");
             return;
         }
@@ -115,7 +124,7 @@ public static class Program
         return null;
     }
 
-    private static ContentKind DetectKind(string source)
+    internal static ContentKind DetectKind(string source)
     {
         if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
@@ -131,6 +140,67 @@ public static class Program
     }
 }
 
+// "Open with -> Cyclorama" for local media, written entirely under HKCU (no admin, no installer).
+// A ProgID carries the open command; each extension opts in via OpenWithProgids, so existing
+// default apps are untouched — Cyclorama just appears in the Open-with list.
+public static class ShellRegistration
+{
+    private static readonly string[] Extensions =
+    {
+        ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".wmv",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
+    };
+
+    public static void Apply(bool register)
+    {
+        try
+        {
+            if (register) Register(); else Unregister();
+            MessageBox.Show(
+                register
+                    ? "Done — right-click a film or a picture and pick \"Open with -> Cyclorama\"."
+                    : "Removed Cyclorama from the Open-with list.",
+                "Cyclorama");
+        }
+        catch (Exception e)
+        {
+            MessageBox.Show("registration failed: " + e.Message, "Cyclorama");
+        }
+    }
+
+    private static void Register()
+    {
+        var exe = Environment.ProcessPath ?? throw new InvalidOperationException("cannot resolve own exe path");
+        var command = $"\"{exe}\" \"%1\"";
+
+        using (var progId = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\Cyclorama.Media"))
+        {
+            progId.SetValue("", "Cyclorama Curved Screen");
+            using (var icon = progId.CreateSubKey("DefaultIcon")) icon.SetValue("", exe + ",0");
+            using (var cmd = progId.CreateSubKey(@"shell\open\command")) cmd.SetValue("", command);
+        }
+        using (var app = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\Applications\Cyclorama.exe"))
+        {
+            app.SetValue("FriendlyAppName", "Cyclorama Curved Screen");
+            using (var cmd = app.CreateSubKey(@"shell\open\command")) cmd.SetValue("", command);
+            using var types = app.CreateSubKey("SupportedTypes");
+            foreach (var ext in Extensions) types.SetValue(ext, "");
+        }
+        foreach (var ext in Extensions)
+            using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ext}\OpenWithProgids"))
+                k.SetValue("Cyclorama.Media", "");
+    }
+
+    private static void Unregister()
+    {
+        Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Cyclorama.Media", throwOnMissingSubKey: false);
+        Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Applications\Cyclorama.exe", throwOnMissingSubKey: false);
+        foreach (var ext in Extensions)
+            using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey($@"Software\Classes\{ext}\OpenWithProgids", writable: true))
+                k?.DeleteValue("Cyclorama.Media", throwOnMissingValue: false);
+    }
+}
+
 public sealed class CurveWindow : Window
 {
     private const double PanelWidth = 3.2;   // curve span (X); aspect comes from the source, not the mesh
@@ -140,6 +210,9 @@ public sealed class CurveWindow : Window
     private const double FollowSpeed = 0.22;  // easing speed toward the cursor target
 
     private readonly ContentSpec spec;
+    private ContentKind kind;       // current content (mutable: drop / paste swaps it in place)
+    private string source;
+    private Grid? rootGrid;
     private readonly AxisAngleRotation3D idleYaw = new(new Vector3D(0, 1, 0), 0);
     private readonly AxisAngleRotation3D idlePitch = new(new Vector3D(1, 0, 0), 0);
     private readonly AxisAngleRotation3D idleRoll = new(new Vector3D(0, 0, 1), 0);
@@ -191,6 +264,8 @@ public sealed class CurveWindow : Window
     public CurveWindow(ContentSpec spec)
     {
         this.spec = spec;
+        kind = spec.Kind;
+        source = spec.Source;
         Title = "Cyclorama Curved Screen";
         Width = spec.Width;
         Height = spec.Height;
@@ -211,33 +286,120 @@ public sealed class CurveWindow : Window
         SizeChanged += (_, _) => LockHeightToAspect();   // programmatic aspect changes (e.g. video opens)
         SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
 
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        KeyDown += OnKeyDown;
         MouseLeftButtonDown += (_, e) =>
         {
             if (e.OriginalSource is ResizeGrip) return;          // let the grip resize, don't move the window
             if (controlBar?.IsMouseOver == true) return;         // using the player controls, don't drag
             if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch { }
         };
+        AllowDrop = true;
+        DragOver += (_, e) => { e.Effects = DragDropEffects.Copy; e.Handled = true; };
+        Drop += OnDrop;
         CompositionTarget.Rendering += OnRendering;
-        if (spec.Kind == ContentKind.Web && webBrush != null)
-            Loaded += (_, _) => webSurface ??= new WebSurface(spec.Source, 1280, 720, webBrush, 30);
-        if (spec.Kind == ContentKind.Video)
-        {
-            hideControlsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
-            hideControlsTimer.Tick += (_, _) => { hideControlsTimer!.Stop(); if (controlBar != null) controlBar.Opacity = 0; };
-            PreviewMouseMove += (_, _) => ShowControls();
-            Loaded += (_, _) => ShowControls();
-        }
+        if (kind == ContentKind.Web && webBrush != null)
+            Loaded += (_, _) => webSurface ??= new WebSurface(source, 1280, 720, webBrush, 30);
+        hideControlsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        hideControlsTimer.Tick += (_, _) => { hideControlsTimer!.Stop(); if (controlBar != null) controlBar.Opacity = 0; };
+        PreviewMouseMove += (_, _) => ShowControls();
+        if (kind == ContentKind.Video) Loaded += (_, _) => ShowControls();
         Closed += (_, _) => { CompositionTarget.Rendering -= OnRendering; videoPlayer?.Close(); webSurface?.Dispose(); };
+    }
+
+    // ---- opening new content in place (drop / paste / seek keys) -----------
+
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape: Close(); break;
+            case Key.Space: TogglePlay(); e.Handled = true; break;
+            case Key.Left: Seek(-10); e.Handled = true; break;
+            case Key.Right: Seek(+10); e.Handled = true; break;
+            case Key.V when Keyboard.Modifiers == ModifierKeys.Control:
+                TryOpenFromClipboard();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void Seek(double seconds)
+    {
+        if (videoPlayer == null || !videoPlayer.NaturalDuration.HasTimeSpan) return;
+        var target = videoPlayer.Position + TimeSpan.FromSeconds(seconds);
+        if (target < TimeSpan.Zero) target = TimeSpan.Zero;
+        var dur = videoPlayer.NaturalDuration.TimeSpan;
+        if (target > dur) target = dur;
+        videoPlayer.Position = target;
+        ShowControls();
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0 && files[0].Length > 0)
+            SwapContent(files[0]);
+        else if (e.Data.GetData(DataFormats.Text) is string text && LooksLikeUrl(text))
+            SwapContent(text.Trim());
+    }
+
+    private void TryOpenFromClipboard()
+    {
+        try
+        {
+            if (Clipboard.ContainsFileDropList() && Clipboard.GetFileDropList() is { Count: > 0 } list && list[0] is { Length: > 0 } file)
+                SwapContent(file);
+            else if (Clipboard.ContainsText() && Clipboard.GetText().Trim() is { Length: > 0 } text &&
+                     (LooksLikeUrl(text) || File.Exists(text)))
+                SwapContent(text);
+        }
+        catch { /* clipboard is flaky (opened by another process); ignore and keep playing */ }
+    }
+
+    private static bool LooksLikeUrl(string s) =>
+        s.TrimStart().StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        s.TrimStart().StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    // Replace whatever is on the curve with a new source: tear down the old media pipeline, rebuild
+    // the viewport with the new material, and add/remove the video control bar to match.
+    private void SwapContent(string newSource)
+    {
+        videoPlayer?.Close();
+        videoPlayer = null;
+        webSurface?.Dispose();
+        webSurface = null;
+        webBrush = null;
+        isPaused = false;
+
+        source = newSource;
+        kind = Program.DetectKind(newSource);
+        aspect = 16.0 / 9.0;                       // web/video default; image sets its own below
+        RebuildViewport(BuildContentMaterial());   // image aspect is known here; video updates on MediaOpened
+
+        if (rootGrid != null)
+        {
+            if (controlBar != null)
+            {
+                rootGrid.Children.Remove(controlBar);
+                controlBar = null; seekBar = null; timeLabel = null; playButton = null;
+            }
+            if (kind == ContentKind.Video)
+            {
+                rootGrid.Children.Insert(rootGrid.Children.Count - 1, BuildControls()); // under the resize grip
+                ShowControls();
+            }
+        }
+        if (kind == ContentKind.Web && webBrush != null)
+            webSurface = new WebSurface(source, 1280, 720, webBrush, 30);
+        LockHeightToAspect();
     }
 
     // ---- scene -------------------------------------------------------------
 
     private UIElement BuildScene(Material material)
     {
-        var root = new Grid { Background = new SolidColorBrush(WColor.FromArgb(1, 0, 0, 0)) };
+        var root = rootGrid = new Grid { Background = new SolidColorBrush(WColor.FromArgb(1, 0, 0, 0)) };
         root.Children.Add(BuildViewport(material));               // [0] — stays index 0 for RebuildViewport
-        if (spec.Kind == ContentKind.Video) root.Children.Add(BuildControls());
+        if (kind == ContentKind.Video) root.Children.Add(BuildControls());
         root.Children.Add(new ResizeGrip                           // added last => sits on top
         {
             Width = 16,
@@ -312,10 +474,10 @@ public sealed class CurveWindow : Window
 
     // ---- content sources ---------------------------------------------------
 
-    private Material BuildContentMaterial() => spec.Kind switch
+    private Material BuildContentMaterial() => kind switch
     {
-        ContentKind.Image => BuildImageMaterial(spec.Source),
-        ContentKind.Video => BuildVideoMaterial(spec.Source),
+        ContentKind.Image => BuildImageMaterial(source),
+        ContentKind.Video => BuildVideoMaterial(source),
         ContentKind.Web => BuildWebMaterial(),
         _ => BuildPlaceholderMaterial("?"),
     };
@@ -348,26 +510,31 @@ public sealed class CurveWindow : Window
     {
         try
         {
-            videoPlayer = new MediaPlayer { Volume = spec.Mute ? 0 : 0.6 };
-            videoPlayer.MediaOpened += (_, _) =>
+            // Handlers capture this local and check it is still the live player, so a stale event
+            // from a player replaced by SwapContent can never touch the new one.
+            var player = new MediaPlayer { Volume = spec.Mute ? 0 : 0.6 };
+            videoPlayer = player;
+            player.MediaOpened += (_, _) =>
             {
-                if (videoPlayer.NaturalVideoWidth > 0 && videoPlayer.NaturalVideoHeight > 0)
+                if (videoPlayer != player) return;
+                if (player.NaturalVideoWidth > 0 && player.NaturalVideoHeight > 0)
                 {
-                    aspect = (double)videoPlayer.NaturalVideoWidth / videoPlayer.NaturalVideoHeight;
+                    aspect = (double)player.NaturalVideoWidth / player.NaturalVideoHeight;
                     Dispatcher.Invoke(RebuildPanel);
                 }
             };
-            videoPlayer.MediaEnded += (_, _) => { videoPlayer!.Position = TimeSpan.Zero; videoPlayer.Play(); };
-            videoPlayer.MediaFailed += (_, ev) =>
+            player.MediaEnded += (_, _) => { if (videoPlayer != player) return; player.Position = TimeSpan.Zero; player.Play(); };
+            player.MediaFailed += (_, ev) =>
                 Dispatcher.Invoke(() =>
                 {
-                    videoPlayer?.Close();
+                    if (videoPlayer != player) return;
+                    player.Close();
                     videoPlayer = null;                       // stop polling a dead player
                     RebuildViewport(BuildPlaceholderMaterial("video failed:\n" + ev.ErrorException?.Message));
                 });
-            videoPlayer.Open(new Uri(Path.GetFullPath(path)));
-            videoPlayer.Play();
-            var drawing = new VideoDrawing { Player = videoPlayer, Rect = new Rect(0, 0, 1, 1) };
+            player.Open(new Uri(Path.GetFullPath(path)));
+            player.Play();
+            var drawing = new VideoDrawing { Player = player, Rect = new Rect(0, 0, 1, 1) };
             var brush = new DrawingBrush(drawing) { Stretch = Stretch.Fill };
             return new DiffuseMaterial(brush);
         }

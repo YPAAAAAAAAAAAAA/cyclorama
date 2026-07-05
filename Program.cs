@@ -291,6 +291,7 @@ public sealed class CurveWindow : Window
         {
             if (e.OriginalSource is ResizeGrip) return;          // let the grip resize, don't move the window
             if (controlBar?.IsMouseOver == true) return;         // using the player controls, don't drag
+            ShowControls();                                      // controls appear on click only, never on hover
             if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch { }
         };
         AllowDrop = true;
@@ -300,9 +301,13 @@ public sealed class CurveWindow : Window
         if (kind == ContentKind.Web && webBrush != null)
             Loaded += (_, _) => webSurface ??= new WebSurface(source, 1280, 720, webBrush, 30);
         hideControlsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
-        hideControlsTimer.Tick += (_, _) => { hideControlsTimer!.Stop(); if (controlBar != null) controlBar.Opacity = 0; };
-        PreviewMouseMove += (_, _) => ShowControls();
-        if (kind == ContentKind.Video) Loaded += (_, _) => ShowControls();
+        hideControlsTimer.Tick += (_, _) =>
+        {
+            hideControlsTimer!.Stop();
+            if (controlBar == null) return;
+            controlBar.Opacity = 0;
+            controlBar.IsHitTestVisible = false;   // a hidden bar must not swallow the next click
+        };
         Closed += (_, _) => { CompositionTarget.Rendering -= OnRendering; videoPlayer?.Close(); webSurface?.Dispose(); };
     }
 
@@ -652,6 +657,8 @@ public sealed class CurveWindow : Window
             VerticalAlignment = VerticalAlignment.Bottom,
             Margin = new Thickness(10, 0, 10, 12),
             Child = grid,
+            Opacity = 0,                 // hidden until the surface is clicked
+            IsHitTestVisible = false,
         };
         return controlBar;
     }
@@ -668,6 +675,7 @@ public sealed class CurveWindow : Window
     {
         if (controlBar == null) return;
         controlBar.Opacity = 1;
+        controlBar.IsHitTestVisible = true;
         hideControlsTimer?.Stop();
         hideControlsTimer?.Start();
     }
